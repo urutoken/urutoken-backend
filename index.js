@@ -7,39 +7,48 @@ app.use(express.json());
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
-// Test route
 app.get("/api", (req, res) => {
   res.json({ message: "API working ✅" });
 });
 
-// Save purchase
-app.post("/buy", async (req, res) => {
+async function savePurchase(wallet, amount, currency) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/purchases`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Prefer": "return=representation"
+    },
+    body: JSON.stringify({ wallet, amount, currency })
+  });
+
+  const data = await response.text();
+
+  if (!response.ok) {
+    throw new Error(data);
+  }
+
+  return data;
+}
+
+app.get("/api/buy", async (req, res) => {
+  try {
+    const { wallet, amount, currency } = req.query;
+    const data = await savePurchase(wallet, Number(amount), currency);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/buy", async (req, res) => {
   try {
     const { wallet, amount, currency } = req.body;
-
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/purchases`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({
-        wallet,
-        amount,
-        currency
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to save");
-    }
-
-    res.json({ success: true });
-
+    const data = await savePurchase(wallet, amount, currency);
+    res.json({ success: true, data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
