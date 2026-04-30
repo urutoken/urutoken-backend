@@ -10,23 +10,41 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 const URU_PRICE_USD = 0.01;
 
 const COIN_IDS = {
+  ETH: "ethereum",
+  WETH: "ethereum",
+
+  BTC: "bitcoin",
+  WBTC: "bitcoin",
+
+  BNB: "binancecoin",
+  SOL: "solana",
+  MATIC: "matic-network",
+  TRX: "tron",
+
   USDT: "tether",
   USDC: "usd-coin",
   DAI: "dai",
-  ETH: "ethereum",
-  BNB: "binancecoin",
-  BTC: "bitcoin",
-  MATIC: "matic-network",
-  TRX: "tron",
-  SOL: "solana"
+
+  LINK: "chainlink",
+  UNI: "uniswap",
+  AAVE: "aave"
 };
 
 const FALLBACK_PRICES = {
   USDT: 1,
   USDC: 1,
   DAI: 1,
+  ETH: 3000,
+  WETH: 3000,
+  BTC: 60000,
+  WBTC: 60000,
+  BNB: 600,
+  SOL: 150,
   MATIC: 0.7,
-  TRX: 0.12
+  TRX: 0.12,
+  LINK: 15,
+  UNI: 8,
+  AAVE: 100
 };
 
 app.get("/api", (req, res) => {
@@ -125,6 +143,13 @@ app.post("/api/buy", async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+app.get("/api/supported-currencies", (req, res) => {
+  res.json({
+    success: true,
+    currencies: Object.keys(COIN_IDS)
+  });
 });
 
 const PORT = process.env.PORT || 3000;
