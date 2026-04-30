@@ -9,44 +9,46 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
 const URU_PRICE_USD = 0.01;
 
-const SUPPORTED_CURRENCIES = [
-  "USDT", "USDC", "DAI",
-  "ETH", "BNB", "BTC",
-  "MATIC", "TRX", "SOL"
-];
-
-function calculateUsdValue(amount, currency, usdValueFromRequest) {
-  const numericAmount = Number(amount);
-
-  if (["USDT", "USDC", "DAI"].includes(currency)) {
-    return numericAmount;
-  }
-
-  if (!usdValueFromRequest) {
-    throw new Error(`${currency} purchase needs usd_value from live price quote`);
-  }
-
-  return Number(usdValueFromRequest);
-}
+const COIN_IDS = {
+  USDT: "tether",
+  USDC: "usd-coin",
+  DAI: "dai",
+  ETH: "ethereum",
+  BNB: "binancecoin",
+  BTC: "bitcoin",
+  MATIC: "matic-network",
+  TRX: "tron",
+  SOL: "solana"
+};
 
 app.get("/api", (req, res) => {
   res.json({ message: "API working ✅" });
 });
+
+async function getLiveUsdPrice(currency) {
+  const coinId = COIN_IDS[currency];
+  if (!coinId) throw new Error("Unsupported currency");
+
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  const price = data?.[coinId]?.usd;
+  if (!price) throw new Error("Live price not available");
+
+  return Number(price);
+}
 
 async function savePurchase(payload) {
   const wallet = payload.wallet || "UNKNOWN_WALLET";
   const currency = String(payload.currency || "USDT").toUpperCase();
   const amount = Number(payload.amount || 0);
 
-  if (!SUPPORTED_CURRENCIES.includes(currency)) {
-    throw new Error("Unsupported currency");
-  }
+  if (!COIN_IDS[currency]) throw new Error("Unsupported currency");
+  if (!amount || amount <= 0) throw new Error("Invalid amount");
 
-  if (!amount || amount <= 0) {
-    throw new Error("Invalid amount");
-  }
-
-  const usd_value = calculateUsdValue(amount, currency, payload.usd_value);
+  const livePriceUsd = await getLiveUsdPrice(currency);
+  const usd_value = amount * livePriceUsd;
   const tokens = usd_value / URU_PRICE_USD;
 
   const tx_hash = payload.tx_hash || "TEST_TX_NOT_PROVIDED";
@@ -72,10 +74,7 @@ async function savePurchase(payload) {
   });
 
   const data = await response.text();
-
-  if (!response.ok) {
-    throw new Error(data);
-  }
+  if (!response.ok) throw new Error(data);
 
   return data;
 }
