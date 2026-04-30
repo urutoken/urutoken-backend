@@ -7,15 +7,50 @@ app.use(express.json());
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
-const URU_PRICE_USDT = 0.01;
+const URU_PRICE_USD = 0.01;
+
+const SUPPORTED_CURRENCIES = [
+  "USDT", "USDC", "DAI",
+  "ETH", "BNB", "BTC",
+  "MATIC", "TRX", "SOL"
+];
+
+function calculateUsdValue(amount, currency, usdValueFromRequest) {
+  const numericAmount = Number(amount);
+
+  if (["USDT", "USDC", "DAI"].includes(currency)) {
+    return numericAmount;
+  }
+
+  if (!usdValueFromRequest) {
+    throw new Error(`${currency} purchase needs usd_value from live price quote`);
+  }
+
+  return Number(usdValueFromRequest);
+}
 
 app.get("/api", (req, res) => {
   res.json({ message: "API working ✅" });
 });
 
-async function savePurchase(wallet, amount, currency) {
-  const numericAmount = Number(amount);
-  const tokens = numericAmount / URU_PRICE_USDT;
+async function savePurchase(payload) {
+  const wallet = payload.wallet || "UNKNOWN_WALLET";
+  const currency = String(payload.currency || "USDT").toUpperCase();
+  const amount = Number(payload.amount || 0);
+
+  if (!SUPPORTED_CURRENCIES.includes(currency)) {
+    throw new Error("Unsupported currency");
+  }
+
+  if (!amount || amount <= 0) {
+    throw new Error("Invalid amount");
+  }
+
+  const usd_value = calculateUsdValue(amount, currency, payload.usd_value);
+  const tokens = usd_value / URU_PRICE_USD;
+
+  const tx_hash = payload.tx_hash || "TEST_TX_NOT_PROVIDED";
+  const status = payload.status || "test";
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/purchases`, {
     method: "POST",
@@ -27,9 +62,12 @@ async function savePurchase(wallet, amount, currency) {
     },
     body: JSON.stringify({
       wallet,
-      amount: numericAmount,
       currency,
-      tokens
+      amount,
+      usd_value,
+      tokens,
+      tx_hash,
+      status
     })
   });
 
@@ -44,8 +82,7 @@ async function savePurchase(wallet, amount, currency) {
 
 app.get("/api/buy", async (req, res) => {
   try {
-    const { wallet, amount, currency } = req.query;
-    const data = await savePurchase(wallet, amount, currency);
+    const data = await savePurchase(req.query);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -54,8 +91,7 @@ app.get("/api/buy", async (req, res) => {
 
 app.post("/api/buy", async (req, res) => {
   try {
-    const { wallet, amount, currency } = req.body;
-    const data = await savePurchase(wallet, amount, currency);
+    const data = await savePurchase(req.body);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
