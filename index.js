@@ -21,22 +21,44 @@ const COIN_IDS = {
   SOL: "solana"
 };
 
+const FALLBACK_PRICES = {
+  USDT: 1,
+  USDC: 1,
+  DAI: 1,
+  MATIC: 0.7,
+  TRX: 0.12
+};
+
 app.get("/api", (req, res) => {
   res.json({ message: "API working ✅" });
 });
 
 async function getLiveUsdPrice(currency) {
   const coinId = COIN_IDS[currency];
-  if (!coinId) throw new Error("Unsupported currency");
 
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
-  const response = await fetch(url);
-  const data = await response.json();
+  if (!coinId) {
+    throw new Error("Unsupported currency");
+  }
 
-  const price = data?.[coinId]?.usd;
-  if (!price) throw new Error("Live price not available");
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
+    const response = await fetch(url);
+    const data = await response.json();
 
-  return Number(price);
+    const price = data?.[coinId]?.usd;
+
+    if (price && Number(price) > 0) {
+      return Number(price);
+    }
+  } catch (error) {
+    console.log("Live price API failed:", error.message);
+  }
+
+  if (FALLBACK_PRICES[currency]) {
+    return FALLBACK_PRICES[currency];
+  }
+
+  throw new Error(`${currency} live price not available`);
 }
 
 async function savePurchase(payload) {
@@ -44,12 +66,17 @@ async function savePurchase(payload) {
   const currency = String(payload.currency || "USDT").toUpperCase();
   const amount = Number(payload.amount || 0);
 
-  if (!COIN_IDS[currency]) throw new Error("Unsupported currency");
-  if (!amount || amount <= 0) throw new Error("Invalid amount");
+  if (!COIN_IDS[currency]) {
+    throw new Error("Unsupported currency");
+  }
+
+  if (!amount || amount <= 0) {
+    throw new Error("Invalid amount");
+  }
 
   const livePriceUsd = await getLiveUsdPrice(currency);
-  const usd_value = amount * livePriceUsd;
-  const tokens = usd_value / URU_PRICE_USD;
+  const usd_value = Number((amount * livePriceUsd).toFixed(6));
+  const tokens = Number((usd_value / URU_PRICE_USD).toFixed(6));
 
   const tx_hash = payload.tx_hash || "TEST_TX_NOT_PROVIDED";
   const status = payload.status || "test";
@@ -74,7 +101,10 @@ async function savePurchase(payload) {
   });
 
   const data = await response.text();
-  if (!response.ok) throw new Error(data);
+
+  if (!response.ok) {
+    throw new Error(data);
+  }
 
   return data;
 }
@@ -98,4 +128,7 @@ app.post("/api/buy", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running 🚀"));
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} 🚀`);
+});
