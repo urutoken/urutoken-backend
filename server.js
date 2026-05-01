@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const { ethers } = require("ethers");
 const buyRoutes = require("./routes/buy");
+app.use("/api/buy", buyRoutes);
 
 const app = express();
 
