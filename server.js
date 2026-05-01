@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const { ethers } = require("ethers");
 const buyRoutes = require("./routes/buy");
+const userRoutes = require("./routes/user");
 
 const app = express();
 
@@ -11,7 +12,7 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/buy", buyRoutes);
-
+app.use("/api/user", userRoutes);
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 
 const COIN_IDS = {
